@@ -467,6 +467,43 @@ input::placeholder { color: #475569; }
 
 .todo-item--done { opacity: 0.75; }
 
+/* ── Auth Tabs ──────────────────────────────────────────────── */
+.auth-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 28px;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 8px 6px;
+  background: transparent;
+  border: none;
+  border-radius: 9px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  white-space: nowrap;
+}
+
+.auth-tab:hover:not(.auth-tab--active) {
+  background: rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
+}
+
+.auth-tab--active {
+  background: rgba(62, 207, 142, 0.15);
+  color: #3ecf8e;
+  font-weight: 600;
+  box-shadow: 0 0 0 1px rgba(62, 207, 142, 0.25);
+}
+
 /* ── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 480px) {
   body { align-items: flex-start; padding: 20px 16px; }

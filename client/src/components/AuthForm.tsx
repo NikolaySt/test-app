@@ -14,16 +14,18 @@ export default function AuthForm() {
 
   const reset = () => { setError(''); setSuccess(''); };
 
-  const toggleMode = () => {
-    setMode(m => m === 'login' ? 'signup' : 'login');
+  const switchMode = (newMode: AuthMode) => {
+    setMode(newMode);
     reset();
   };
 
   const validate = (): string | null => {
     if (!email.trim()) return 'Email is required.';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Enter a valid email address.';
-    if (!password) return 'Password is required.';
-    if (mode === 'signup' && password.length < 6) return 'Password must be at least 6 characters.';
+    if (mode !== 'magic') {
+      if (!password) return 'Password is required.';
+      if (mode === 'signup' && password.length < 6) return 'Password must be at least 6 characters.';
+    }
     return null;
   };
 
@@ -41,7 +43,14 @@ export default function AuthForm() {
 
     setLoading(true);
     try {
-      if (mode === 'signup') {
+      if (mode === 'magic') {
+        const { error: err } = await supabase.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: window.location.origin },
+        });
+        if (err) throw err;
+        setSuccess(`Magic link sent! Check your inbox at ${email}.`);
+      } else if (mode === 'signup') {
         const { data, error: err } = await supabase.auth.signUp({ email, password });
         if (err) throw err;
         if (data?.user && !data.session) {
@@ -58,6 +67,23 @@ export default function AuthForm() {
     }
   };
 
+  const headings: Record<AuthMode, { title: string; subtitle: string }> = {
+    login: { title: 'Welcome back', subtitle: 'Sign in to your account to continue.' },
+    signup: { title: 'Create account', subtitle: 'Sign up to get started today.' },
+    magic: { title: 'Magic link', subtitle: 'We\'ll email you a link — no password needed.' },
+  };
+
+  const buttonLabel = () => {
+    if (loading) {
+      if (mode === 'login') return 'Signing in…';
+      if (mode === 'signup') return 'Creating account…';
+      return 'Sending link…';
+    }
+    if (mode === 'login') return 'Sign In';
+    if (mode === 'signup') return 'Create Account';
+    return 'Send Magic Link';
+  };
+
   return (
     <div className="card">
       <div className="logo">
@@ -67,10 +93,33 @@ export default function AuthForm() {
 
       {!isConfigured && <ConfigNotice />}
 
-      <h2>{mode === 'login' ? 'Welcome back' : 'Create account'}</h2>
-      <p className="subtitle">
-        {mode === 'login' ? 'Sign in to your account to continue.' : 'Sign up to get started today.'}
-      </p>
+      {/* Mode tab switcher */}
+      <div className="auth-tabs">
+        <button
+          type="button"
+          className={`auth-tab${mode === 'login' ? ' auth-tab--active' : ''}`}
+          onClick={() => switchMode('login')}
+        >
+          Sign In
+        </button>
+        <button
+          type="button"
+          className={`auth-tab${mode === 'signup' ? ' auth-tab--active' : ''}`}
+          onClick={() => switchMode('signup')}
+        >
+          Sign Up
+        </button>
+        <button
+          type="button"
+          className={`auth-tab${mode === 'magic' ? ' auth-tab--active' : ''}`}
+          onClick={() => switchMode('magic')}
+        >
+          ✨ Magic Link
+        </button>
+      </div>
+
+      <h2>{headings[mode].title}</h2>
+      <p className="subtitle">{headings[mode].subtitle}</p>
 
       <Alert type="error" message={error} />
       <Alert type="success" message={success} />
@@ -88,30 +137,27 @@ export default function AuthForm() {
             disabled={loading}
           />
         </div>
-        <div className="form-group">
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            placeholder={mode === 'signup' ? 'Min. 6 characters' : '••••••••'}
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            disabled={loading}
-          />
-        </div>
+
+        {mode !== 'magic' && (
+          <div className="form-group">
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              type="password"
+              placeholder={mode === 'signup' ? 'Min. 6 characters' : '••••••••'}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              disabled={loading}
+            />
+          </div>
+        )}
+
         <button type="submit" className="btn btn-primary" disabled={loading}>
           {loading && <span className="spinner" />}
-          {loading ? (mode === 'login' ? 'Signing in…' : 'Creating account…') : (mode === 'login' ? 'Sign In' : 'Create Account')}
+          {buttonLabel()}
         </button>
       </form>
-
-      <div className="toggle-link">
-        {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}
-        <button onClick={toggleMode} type="button">
-          {mode === 'login' ? 'Sign Up' : 'Sign In'}
-        </button>
-      </div>
     </div>
   );
 }
