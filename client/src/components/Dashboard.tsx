@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import type { DashboardProps } from '../types/auth';
+import TodoList from './TodoList';
 
 function getInitial(email?: string) {
   return email ? email[0].toUpperCase() : '?';
@@ -65,6 +66,8 @@ export default function Dashboard({ session }: DashboardProps) {
           <span className="info-value" style={{ fontSize: '12px' }}>{signedInAt}</span>
         </div>
       </div>
+
+      <TodoList userId={user.id} />
 
       <button className="btn btn-outline" onClick={handleLogout} disabled={loading}>
         {loading && <span className="spinner" style={{ borderTopColor: '#94a3b8' }} />}
