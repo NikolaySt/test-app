@@ -7,6 +7,7 @@ import Dashboard from './components/Dashboard';
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   useEffect(() => {
     if (!isConfigured || !supabase) {
@@ -19,12 +20,26 @@ export default function App() {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+        setSession(session);
+      } else {
+        if (event === 'SIGNED_IN' && isPasswordRecovery) {
+          // Stay in recovery mode until password is updated
+        } else {
+          setIsPasswordRecovery(false);
+        }
+        setSession(session);
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const handlePasswordUpdated = () => {
+    setIsPasswordRecovery(false);
+  };
 
   if (loading) {
     return (
@@ -33,6 +48,10 @@ export default function App() {
         Loading…
       </div>
     );
+  }
+
+  if (isPasswordRecovery) {
+    return <AuthForm initialMode="reset-password" onPasswordUpdated={handlePasswordUpdated} />;
   }
 
   return session ? <Dashboard session={session} /> : <AuthForm />;
