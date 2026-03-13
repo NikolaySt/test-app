@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# CI/CD & docs
+azure-pipelines.yml
+docker-compose.yml
+*.md
+readme.md
+README.md
+
+# Node dependencies (rebuilt in Docker)
+node_modules
+client/node_modules
+server/node_modules
+
+# Build output (rebuilt in Docker)
+client/dist
+server/dist
+
+# Local env files (never bake secrets into the image)
+.env
+.env.*
+client/.env
+client/.env.*
+server/.env
+server/.env.*
+
+# Editor & OS
+.vscode
+.idea
+*.DS_Store
+Thumbs.db
+
+# Test / coverage
+coverage
+*.test.ts
+*.spec.ts

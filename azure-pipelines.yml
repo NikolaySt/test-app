@@ -1,0 +1,137 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Azure DevOps Pipeline — Build & Deploy
+#
+# Required pipeline variables (set in Azure DevOps → Pipelines → Variables,
+# mark secrets as "secret" / use a Variable Group):
+#
+#   DOCKER_REGISTRY                  ACR login server  e.g. myregistry.azurecr.io
+#   DOCKER_REGISTRY_SERVICE_CONNECTION  Service connection name for ACR
+#   AZURE_SUBSCRIPTION               Azure subscription service connection name
+#   WEBAPP_NAME                      Azure Web App name
+#   RESOURCE_GROUP                   Azure resource group name
+#   SUPABASE_URL                     (secret) Supabase project URL
+#   SUPABASE_ANON_KEY                (secret) Supabase anon key
+# ─────────────────────────────────────────────────────────────────────────────
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - readme.md
+      - README.md
+      - "*.md"
+
+pr:
+  branches:
+    include:
+      - main
+
+variables:
+  imageName: "supabase-auth-app"
+  imageTag: "$(Build.BuildId)"
+  containerRegistry: "$(DOCKER_REGISTRY)"
+  fullImageName: "$(containerRegistry)/$(imageName)"
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+  # ───────────────────────────────────────────
+  # STAGE 1 — Build & Push Docker image to ACR
+  # ───────────────────────────────────────────
+  - stage: Build
+    displayName: "Build & Push Docker Image"
+    jobs:
+      - job: BuildAndPush
+        displayName: "Docker Build & Push"
+        steps:
+          - checkout: self
+            displayName: "Checkout source"
+
+          - task: Docker@2
+            displayName: "Build Docker image"
+            inputs:
+              command: build
+              containerRegistry: "$(DOCKER_REGISTRY_SERVICE_CONNECTION)"
+              repository: "$(imageName)"
+              dockerfile: "$(Build.SourcesDirectory)/Dockerfile"
+              buildContext: "$(Build.SourcesDirectory)"
+              tags: |
+                $(imageTag)
+                latest
+              arguments: >
+                --build-arg VITE_SUPABASE_URL=$(SUPABASE_URL)
+                --build-arg VITE_SUPABASE_ANON_KEY=$(SUPABASE_ANON_KEY)
+
+          - task: Docker@2
+            displayName: "Push image to ACR"
+            inputs:
+              command: push
+              containerRegistry: "$(DOCKER_REGISTRY_SERVICE_CONNECTION)"
+              repository: "$(imageName)"
+              tags: |
+                $(imageTag)
+                latest
+
+          # Publish image tag for downstream stages
+          - bash: echo "##vso[task.setvariable variable=imageTag;isOutput=true]$(imageTag)"
+            name: outputVars
+            displayName: "Export image tag"
+
+  # ───────────────────────────────────────────
+  # STAGE 2 — Deploy to Azure Web App
+  # ───────────────────────────────────────────
+  - stage: Deploy
+    displayName: "Deploy to Azure Web App"
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    variables:
+      builtImageTag: $[ stageDependencies.Build.BuildAndPush.outputs['outputVars.imageTag'] ]
+    jobs:
+      - deployment: DeployWebApp
+        displayName: "Deploy container to Web App"
+        environment: "production"
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureWebAppContainer@1
+                  displayName: "Deploy to Azure Web App for Containers"
+                  inputs:
+                    azureSubscription: "$(AZURE_SUBSCRIPTION)"
+                    appName: "$(WEBAPP_NAME)"
+                    resourceGroupName: "$(RESOURCE_GROUP)"
+                    imageName: "$(fullImageName):$(builtImageTag)"
+
+                # Inject Supabase env vars as Web App application settings
+                - task: AzureAppServiceSettings@1
+                  displayName: "Configure app settings (env vars)"
+                  inputs:
+                    azureSubscription: "$(AZURE_SUBSCRIPTION)"
+                    appName: "$(WEBAPP_NAME)"
+                    resourceGroupName: "$(RESOURCE_GROUP)"
+                    appSettings: |
+                      [
+                        {
+                          "name": "SUPABASE_URL",
+                          "value": "$(SUPABASE_URL)",
+                          "slotSetting": false
+                        },
+                        {
+                          "name": "SUPABASE_ANON_KEY",
+                          "value": "$(SUPABASE_ANON_KEY)",
+                          "slotSetting": false
+                        },
+                        {
+                          "name": "NODE_ENV",
+                          "value": "production",
+                          "slotSetting": false
+                        },
+                        {
+                          "name": "WEBSITES_PORT",
+                          "value": "80",
+                          "slotSetting": false
+                        }
+                      ]

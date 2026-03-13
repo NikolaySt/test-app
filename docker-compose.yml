@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # These are baked into the Vite bundle at build time.
+        # For runtime injection, set SUPABASE_URL / SUPABASE_ANON_KEY below instead.
+        VITE_SUPABASE_URL: "${VITE_SUPABASE_URL:-YOUR_SUPABASE_URL}"
+        VITE_SUPABASE_ANON_KEY: "${VITE_SUPABASE_ANON_KEY:-YOUR_SUPABASE_ANON_KEY}"
+    ports:
+      - "8080:80"
+    environment:
+      # Runtime injection (replaces placeholders in built JS files at startup)
+      - SUPABASE_URL=${SUPABASE_URL:-https://your-project.supabase.co}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-your-anon-key-here}
+      # Express server config
+      - NODE_ENV=production
+      - PORT=3001
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
